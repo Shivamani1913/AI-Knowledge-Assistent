@@ -1,0 +1,18 @@
+## .NET
+bin/
+obj/
+*.user
+*.suo
+
+## Visual Studio
+.vs/
+
+## Uploaded files (local dev artifacts)
+AIKnowledgeAssistant.Api/uploads/
+
+## User secrets (never commit these)
+**/secrets.json
+
+## OS files
+.DS_Store
+Thumbs.db
