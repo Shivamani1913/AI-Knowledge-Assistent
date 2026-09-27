@@ -7,4 +7,5 @@ public class DocumentChunk
     public int ChunkIndex { get; set; }
     public string Content { get; set; } = string.Empty;
     public string SearchIndexKey { get; set; } = string.Empty;
+    public string EmbeddingJson { get; set; } = string.Empty;
 }

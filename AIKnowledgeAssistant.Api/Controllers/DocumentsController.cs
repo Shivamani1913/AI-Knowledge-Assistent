@@ -1,9 +1,11 @@
 using System.Threading.Channels;
+using System.Text.Json;
 using AIKnowledgeAssistant.Core.Entities;
 using AIKnowledgeAssistant.Core.Enums;
 using AIKnowledgeAssistant.Infrastructure.Data;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 
 namespace AIKnowledgeAssistant.Api.Controllers;
@@ -61,4 +63,25 @@ public class DocumentsController(
         var doc = await db.Documents.FindAsync(id);
         return doc is null ? NotFound() : Ok(doc);
     }
+
+    [HttpGet("{id}/chunks")]
+    public async Task<IActionResult> GetChunks(Guid id)
+    {
+        var rawChunks = await db.Chunks
+            .Where(c => c.DocumentId == id)
+            .OrderBy(c => c.ChunkIndex)
+            .ToListAsync();
+
+        var chunks = rawChunks.Select(c => new
+        {
+            c.ChunkIndex,
+            ContentPreview = c.Content.Length > 100 ? c.Content.Substring(0, 100) + "..." : c.Content,
+            EmbeddingLength = c.EmbeddingJson.Length > 0
+                ? JsonSerializer.Deserialize<float[]>(c.EmbeddingJson)!.Length
+                : 0
+        }).ToList();
+
+        return Ok(chunks);
+    }
 }
+
