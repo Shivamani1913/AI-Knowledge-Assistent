@@ -26,6 +26,7 @@ builder.Services.AddHostedService<AIKnowledgeAssistant.Api.Processing.DocumentPr
 builder.Services.AddSingleton<AIKnowledgeAssistant.Api.Hubs.IProcessingNotifier, AIKnowledgeAssistant.Api.Hubs.ProcessingNotifier>();
 builder.Services.AddScoped<AIKnowledgeAssistant.Infrastructure.Processing.DocumentTextExtractor>();
 builder.Services.AddScoped<AIKnowledgeAssistant.Infrastructure.Processing.ChunkingService>();
+builder.Services.AddScoped<AIKnowledgeAssistant.Core.Interfaces.IRagService, AIKnowledgeAssistant.Infrastructure.AI.RagService>();
 
 var ollamaSection = builder.Configuration.GetSection("Ollama");
 var ollamaEndpoint = ollamaSection["Endpoint"]!;
@@ -130,6 +131,7 @@ app.MapControllers();
 app.MapHub<AIKnowledgeAssistant.Api.Hubs.ProcessingHub>("/hubs/processing");
 
 app.Run();
+
 
 
 
