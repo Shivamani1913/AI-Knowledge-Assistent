@@ -1,3 +1,5 @@
+using Microsoft.Extensions.AI;
+using OpenAI;
 using AIKnowledgeAssistant.Core.Entities;
 using AIKnowledgeAssistant.Infrastructure.Data;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -24,6 +26,18 @@ builder.Services.AddHostedService<AIKnowledgeAssistant.Api.Processing.DocumentPr
 builder.Services.AddSingleton<AIKnowledgeAssistant.Api.Hubs.IProcessingNotifier, AIKnowledgeAssistant.Api.Hubs.ProcessingNotifier>();
 builder.Services.AddScoped<AIKnowledgeAssistant.Infrastructure.Processing.DocumentTextExtractor>();
 builder.Services.AddScoped<AIKnowledgeAssistant.Infrastructure.Processing.ChunkingService>();
+
+var ollamaSection = builder.Configuration.GetSection("Ollama");
+var ollamaEndpoint = ollamaSection["Endpoint"]!;
+var chatModel = ollamaSection["ChatModel"]!;
+var embeddingModel = ollamaSection["EmbeddingModel"]!;
+
+var openAiClient = new OpenAI.OpenAIClient(
+    new System.ClientModel.ApiKeyCredential("ollama"),
+    new OpenAI.OpenAIClientOptions { Endpoint = new Uri(ollamaEndpoint) });
+
+builder.Services.AddChatClient(_ => openAiClient.AsChatClient(chatModel));
+builder.Services.AddEmbeddingGenerator<string, Embedding<float>>(_ => openAiClient.AsEmbeddingGenerator(embeddingModel));
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
@@ -116,3 +130,9 @@ app.MapControllers();
 app.MapHub<AIKnowledgeAssistant.Api.Hubs.ProcessingHub>("/hubs/processing");
 
 app.Run();
+
+
+
+
+
+
