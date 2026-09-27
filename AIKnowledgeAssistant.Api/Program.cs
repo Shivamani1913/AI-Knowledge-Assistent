@@ -129,8 +129,10 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 app.MapHub<AIKnowledgeAssistant.Api.Hubs.ProcessingHub>("/hubs/processing");
+app.MapHub<AIKnowledgeAssistant.Api.Hubs.ChatHub>("/hubs/chat");
 
 app.Run();
+
 
 
 
