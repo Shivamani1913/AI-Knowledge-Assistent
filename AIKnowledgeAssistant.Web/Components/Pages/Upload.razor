@@ -1,0 +1,56 @@
+@page "/upload"
+@rendermode InteractiveServer
+@inject HttpClient Http
+@inject AIKnowledgeAssistant.Web.Services.AuthState AuthState
+@using System.Net.Http.Headers
+@using System.Net.Http.Json
+
+<h3>Upload Document</h3>
+
+@if (!AuthState.IsAuthenticated)
+{
+    <p>Please <a href="/login">log in</a> first.</p>
+}
+else
+{
+    <p>Logged in as @AuthState.Email</p>
+    <InputFile OnChange="OnFileSelected" />
+    <p>@status</p>
+}
+
+@code {
+    private string status = "";
+
+    private async Task OnFileSelected(InputFileChangeEventArgs e)
+    {
+        var file = e.File;
+        status = "Uploading...";
+
+        using var content = new MultipartFormDataContent();
+        var stream = file.OpenReadStream(maxAllowedSize: 20 * 1024 * 1024);
+        var fileContent = new StreamContent(stream);
+        var contentType = string.IsNullOrEmpty(file.ContentType) ? "application/octet-stream" : file.ContentType;
+        fileContent.Headers.ContentType = new MediaTypeHeaderValue(contentType);
+        content.Add(fileContent, "file", file.Name);
+
+        var request = new HttpRequestMessage(HttpMethod.Post, "/api/Documents/upload") { Content = content };
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", AuthState.Token);
+
+        var response = await Http.SendAsync(request);
+
+        if (response.IsSuccessStatusCode)
+        {
+            var result = await response.Content.ReadFromJsonAsync<UploadResponse>();
+            status = "Uploaded! Document ID: " + result?.documentId + ". Processing in the background.";
+        }
+        else
+        {
+            status = "Upload failed: " + response.StatusCode;
+        }
+    }
+
+    private class UploadResponse
+    {
+        public Guid documentId { get; set; }
+    }
+}

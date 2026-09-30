@@ -1,0 +1,48 @@
+@page "/login"
+@rendermode InteractiveServer
+@inject HttpClient Http
+@inject AIKnowledgeAssistant.Web.Services.AuthState AuthState
+@inject NavigationManager Nav
+@using System.Net.Http.Json
+
+<h3>Login</h3>
+
+<div style="max-width: 400px;">
+    <input @bind="email" placeholder="Email" class="form-control mb-2" />
+    <input @bind="password" type="password" placeholder="Password" class="form-control mb-2" />
+    <button class="btn btn-primary" @onclick="DoLogin">Log in</button>
+
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <p style="color: red;">@errorMessage</p>
+    }
+</div>
+
+@code {
+    private string email = "";
+    private string password = "";
+    private string? errorMessage;
+
+    private async Task DoLogin()
+    {
+        errorMessage = null;
+        var response = await Http.PostAsJsonAsync("/api/Auth/login", new { email, password });
+
+        if (response.IsSuccessStatusCode)
+        {
+            var result = await response.Content.ReadFromJsonAsync<LoginResponse>();
+            AuthState.Token = result?.token;
+            AuthState.Email = email;
+            Nav.NavigateTo("/upload");
+        }
+        else
+        {
+            errorMessage = "Login failed. Check your credentials.";
+        }
+    }
+
+    private class LoginResponse
+    {
+        public string? token { get; set; }
+    }
+}
