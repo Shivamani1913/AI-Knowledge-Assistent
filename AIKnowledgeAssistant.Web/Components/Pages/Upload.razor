@@ -1,25 +1,54 @@
 @page "/upload"
-@rendermode InteractiveServer
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
 @inject HttpClient Http
 @inject AIKnowledgeAssistant.Web.Services.AuthState AuthState
+@inject IJSRuntime JS
 @using System.Net.Http.Headers
 @using System.Net.Http.Json
 
-<h3>Upload Document</h3>
+<div class="page-shell">
+    <div class="card">
+        <h3>Upload a document</h3>
 
-@if (!AuthState.IsAuthenticated)
-{
-    <p>Please <a href="/login">log in</a> first.</p>
-}
-else
-{
-    <p>Logged in as @AuthState.Email</p>
-    <InputFile OnChange="OnFileSelected" />
-    <p>@status</p>
-}
+        @if (!isAuthenticated)
+        {
+            <p class="muted-text">Please <a href="/login">log in</a> first.</p>
+        }
+        else
+        {
+            <p class="muted-text">Logged in as @AuthState.Email</p>
+            <InputFile OnChange="OnFileSelected" />
+
+            @if (!string.IsNullOrEmpty(status))
+            {
+                <div class="status-banner">@status</div>
+            }
+
+            <p style="margin-top: 1.25rem;"><a href="/chat">Go to Chat &rarr;</a></p>
+        }
+    </div>
+</div>
 
 @code {
     private string status = "";
+    private bool isAuthenticated = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!AuthState.IsAuthenticated)
+        {
+            var token = await JS.InvokeAsync<string?>("authStorage.getToken");
+            var email = await JS.InvokeAsync<string?>("authStorage.getEmail");
+
+            if (!string.IsNullOrEmpty(token))
+            {
+                AuthState.Token = token;
+                AuthState.Email = email;
+            }
+        }
+
+        isAuthenticated = AuthState.IsAuthenticated;
+    }
 
     private async Task OnFileSelected(InputFileChangeEventArgs e)
     {
@@ -41,7 +70,7 @@ else
         if (response.IsSuccessStatusCode)
         {
             var result = await response.Content.ReadFromJsonAsync<UploadResponse>();
-            status = "Uploaded! Document ID: " + result?.documentId + ". Processing in the background.";
+            status = "Uploaded. Processing in the background — document ID " + result?.documentId;
         }
         else
         {

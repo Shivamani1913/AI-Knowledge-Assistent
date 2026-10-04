@@ -1,21 +1,24 @@
 @page "/login"
-@rendermode InteractiveServer
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
 @inject HttpClient Http
 @inject AIKnowledgeAssistant.Web.Services.AuthState AuthState
 @inject NavigationManager Nav
+@inject IJSRuntime JS
 @using System.Net.Http.Json
 
-<h3>Login</h3>
+<div class="page-shell">
+    <div class="card" style="max-width: 380px; margin: 0 auto;">
+        <h3>Log in</h3>
 
-<div style="max-width: 400px;">
-    <input @bind="email" placeholder="Email" class="form-control mb-2" />
-    <input @bind="password" type="password" placeholder="Password" class="form-control mb-2" />
-    <button class="btn btn-primary" @onclick="DoLogin">Log in</button>
+        <input @bind="email" placeholder="Email" class="field" />
+        <input @bind="password" type="password" placeholder="Password" class="field" />
+        <button class="btn btn-primary" style="width: 100%;" @onclick="DoLogin">Log in</button>
 
-    @if (!string.IsNullOrEmpty(errorMessage))
-    {
-        <p style="color: red;">@errorMessage</p>
-    }
+        @if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <p class="error-text">@errorMessage</p>
+        }
+    </div>
 </div>
 
 @code {
@@ -33,6 +36,10 @@
             var result = await response.Content.ReadFromJsonAsync<LoginResponse>();
             AuthState.Token = result?.token;
             AuthState.Email = email;
+
+            await JS.InvokeVoidAsync("authStorage.setToken", result?.token);
+            await JS.InvokeVoidAsync("authStorage.setEmail", email);
+
             Nav.NavigateTo("/upload");
         }
         else

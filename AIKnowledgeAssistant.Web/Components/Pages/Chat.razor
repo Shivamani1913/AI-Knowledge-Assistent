@@ -1,0 +1,153 @@
+@page "/chat"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@inject AIKnowledgeAssistant.Web.Services.AuthState AuthState
+@inject IJSRuntime JS
+@using Microsoft.AspNetCore.SignalR.Client
+@using System.Text.Json
+@implements IAsyncDisposable
+
+<div class="page-shell" style="max-width: 720px;">
+    <div class="card">
+        <h3>Chat</h3>
+
+        @if (!isAuthenticated)
+        {
+            <p class="muted-text">Please <a href="/login">log in</a> first.</p>
+        }
+        else
+        {
+            <div class="chat-window">
+                @foreach (var msg in messages)
+                {
+                    <div class="bubble @(msg.IsUser ? "user" : "assistant")">
+                        @msg.Text
+                        @if (!msg.IsUser && msg.Citations.Any())
+                        {
+                            <div style="margin-top: 0.5rem;">
+                                @foreach (var c in msg.Citations)
+                                {
+                                    <span class="citation-pill">@c</span>
+                                }
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+
+            <div class="chat-input-row">
+                <input @bind="question" @bind:event="oninput" @onkeyup="HandleKeyUp"
+                       placeholder="Ask a question about your documents..." class="field" />
+                <button class="btn btn-primary" @onclick="AskQuestion" disabled="@isAsking">
+                    @(isAsking ? "Thinking..." : "Ask")
+                </button>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    private HubConnection? hubConnection;
+    private string question = "";
+    private bool isAsking = false;
+    private bool isAuthenticated = false;
+
+    private class ChatBubble
+    {
+        public bool IsUser { get; set; }
+        public string Text { get; set; } = "";
+        public List<string> Citations { get; set; } = new();
+    }
+
+    private List<ChatBubble> messages = new();
+    private ChatBubble? currentAssistantBubble;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!AuthState.IsAuthenticated)
+        {
+            var token = await JS.InvokeAsync<string?>("authStorage.getToken");
+            var email = await JS.InvokeAsync<string?>("authStorage.getEmail");
+
+            if (!string.IsNullOrEmpty(token))
+            {
+                AuthState.Token = token;
+                AuthState.Email = email;
+            }
+        }
+
+        isAuthenticated = AuthState.IsAuthenticated;
+
+        if (!isAuthenticated)
+        {
+            return;
+        }
+
+        hubConnection = new HubConnectionBuilder()
+            .WithUrl("http://localhost:5184/hubs/chat", options =>
+            {
+                options.AccessTokenProvider = () => Task.FromResult(AuthState.Token);
+            })
+            .Build();
+
+        hubConnection.On<JsonElement>("ReceiveAnswerChunk", (chunk) =>
+        {
+            var type = chunk.GetProperty("type").GetString();
+
+            if (type == "token" && currentAssistantBubble is not null)
+            {
+                currentAssistantBubble.Text += chunk.GetProperty("text").GetString();
+                InvokeAsync(StateHasChanged);
+            }
+            else if (type == "citations" && currentAssistantBubble is not null)
+            {
+                var seen = new HashSet<string>();
+                foreach (var c in chunk.GetProperty("citations").EnumerateArray())
+                {
+                    var fileName = c.GetProperty("fileName").GetString();
+                    var chunkIndex = c.GetProperty("chunkIndex").GetInt32();
+                    var label = $"{fileName} (chunk {chunkIndex})";
+                    if (seen.Add(label))
+                    {
+                        currentAssistantBubble.Citations.Add(label);
+                    }
+                }
+                isAsking = false;
+                InvokeAsync(StateHasChanged);
+            }
+        });
+
+        await hubConnection.StartAsync();
+    }
+
+    private async Task HandleKeyUp(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await AskQuestion();
+        }
+    }
+
+    private async Task AskQuestion()
+    {
+        if (hubConnection is null || string.IsNullOrWhiteSpace(question) || isAsking) return;
+
+        messages.Add(new ChatBubble { IsUser = true, Text = question });
+
+        currentAssistantBubble = new ChatBubble { IsUser = false, Text = "" };
+        messages.Add(currentAssistantBubble);
+
+        isAsking = true;
+        var askedQuestion = question;
+        question = "";
+
+        await hubConnection.InvokeAsync("AskQuestion", Guid.NewGuid(), askedQuestion);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (hubConnection is not null)
+        {
+            await hubConnection.DisposeAsync();
+        }
+    }
+}
